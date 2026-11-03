@@ -7,7 +7,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win nsis --x64 --publish never",
-    "test": "node --test test/*.test.cjs"
+    "test": "node --test test/*.test.cjs",
+    "predist": "node scripts/prepare-installer.cjs"
   },
   "build": {
     "appId": "br.com.authgate.ipupdater",

@@ -32,7 +32,11 @@ As versões 1.1.x e 1.2.x consultavam `authgate.com.br/downloads/ip-updater`. O 
 
 O executável instalado se chama `AuthGate-IP-Agent.exe`; o instalador de download é `AuthGate-IP-Agent-Setup.exe`. A identidade `br.com.authgate.ipupdater`, o nome do produto e a pasta de configuração foram mantidos para preservar instalações existentes. O link de download antigo permanece como alias na release.
 
-O instalador verifica os nomes exatos dos processos atual e antigo usando o plugin nativo NSIS, sem considerar qualquer processo cujo caminho comece com a pasta do aplicativo. Erros de enumeração interrompem a instalação, em vez de ignorar processos potencialmente ativos. Antes de publicar, o workflow executa instalação, atualização da versão anterior, reinstalação e desinstalação no Windows.
+O instalador verifica os nomes exatos dos processos atual e antigo usando o plugin nativo NSIS, sem considerar qualquer processo cujo caminho comece com a pasta do aplicativo. Erros de enumeração interrompem a instalação, em vez de ignorar processos potencialmente ativos. Se o desinstalador antigo não iniciar ou retornar erro após as tentativas normais, a recuperação valida que a pasta corresponde à instalação atual e contém o executável e o pacote Electron. Somente então move a pasta inteira para um backup vizinho (`.authgate-backup-*`) e continua a instalação. Não apaga dados do usuário nem o backup. Se a pasta não puder ser validada ou movida, interrompe com um erro explícito. Se a nova instalação abortar depois da recuperação, tenta restaurar a pasta anterior, preservando também os arquivos parciais.
+
+O diagnóstico fica em `%TEMP%\AuthGate-IP-Agent-install.log`, sem senhas ou tokens. O hook é aplicado por `npm run predist` a um template do electron-builder com SHA-256 fixado: mudanças na dependência exigem revisão explícita, em vez de aplicar o patch silenciosamente.
+
+Antes de publicar, o workflow testa instalação, atualização da versão anterior, reinstalação, desinstalação, preservação da configuração e recuperação de um desinstalador corrompido ou que retorna código 7 no Windows.
 
 ## Desenvolvimento
 
