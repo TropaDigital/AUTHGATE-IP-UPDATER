@@ -2,7 +2,7 @@
 
 Aplicativo Windows para manter atualizado o IP público da rede de uma unidade do AuthGate.
 
-[Baixar instalador Windows](https://github.com/TropaDigital/AUTHGATE-IP-UPDATER/releases/latest/download/AuthGate-Atualizador-de-IP-Setup.exe) · [Versões publicadas](https://github.com/TropaDigital/AUTHGATE-IP-UPDATER/releases)
+[Baixar instalador Windows](https://github.com/TropaDigital/AUTHGATE-IP-UPDATER/releases/latest/download/AuthGate-IP-Agent-Setup.exe) · [Versões publicadas](https://github.com/TropaDigital/AUTHGATE-IP-UPDATER/releases)
 
 ## Uso
 
@@ -27,6 +27,12 @@ Não altere `appId` ou o nome do produto sem planejar a migração. A publicaç�
 ## Migração de instalações anteriores
 
 As versões 1.1.x e 1.2.x consultavam `authgate.com.br/downloads/ip-updater`. O frontend possui redirecionamentos de compatibilidade que precisam ser publicados uma vez pelo DevOps. Depois que o computador instalar uma versão 1.3.x, as próximas atualizações passam diretamente pelo GitHub, sem depender de deploy do site. Alternativamente, execute o instalador atual sobre a instalação existente para migrar imediatamente.
+
+## Nome do processo e instalação
+
+O executável instalado se chama `AuthGate-IP-Agent.exe`; o instalador de download é `AuthGate-IP-Agent-Setup.exe`. A identidade `br.com.authgate.ipupdater`, o nome do produto e a pasta de configuração foram mantidos para preservar instalações existentes. O link de download antigo permanece como alias na release.
+
+O instalador verifica os nomes exatos dos processos atual e antigo usando o plugin nativo NSIS, sem considerar qualquer processo cujo caminho comece com a pasta do aplicativo. Erros de enumeração interrompem a instalação, em vez de ignorar processos potencialmente ativos. Antes de publicar, o workflow executa instalação, atualização da versão anterior, reinstalação e desinstalação no Windows.
 
 ## Desenvolvimento
 

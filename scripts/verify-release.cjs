@@ -7,9 +7,12 @@ const manifest = fs.readFileSync(path.join(release, 'latest.yml'), 'utf8');
 const version = require('../package.json').version;
 assert.equal(/^version: (.+)$/m.exec(manifest)?.[1], version);
 const name = /^path: (.+)$/m.exec(manifest)?.[1];
-assert.equal(name, `AuthGate-Atualizador-de-IP-Setup-${version}.exe`);
+assert.equal(name, `AuthGate-IP-Agent-Setup-${version}.exe`);
 const data = fs.readFileSync(path.join(release, name));
 assert.equal(data.subarray(0, 2).toString(), 'MZ');
 assert.equal(crypto.createHash('sha512').update(data).digest('base64'), /^sha512: (.+)$/m.exec(manifest)?.[1]);
 assert.ok(fs.statSync(path.join(release, `${name}.blockmap`)).size > 0);
 console.log(`Release ${version}: executável Windows, SHA-512 e blockmap verificados.`);
+
+assert.ok(fs.existsSync(path.join(release, 'win-unpacked', 'AuthGate-IP-Agent.exe')));
+assert.equal(require('../package.json').build.appId, 'br.com.authgate.ipupdater');

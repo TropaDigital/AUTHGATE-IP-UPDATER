@@ -34,12 +34,14 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "AuthGate-Atualizador-de-IP-Setup-${version}.${ext}"
+      "artifactName": "AuthGate-IP-Agent-Setup-${version}.${ext}",
+      "executableName": "AuthGate-IP-Agent"
     },
     "nsis": {
       "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false
+      "allowToChangeInstallationDirectory": false,
+      "include": "build/installer.nsh"
     }
   },
   "devDependencies": {

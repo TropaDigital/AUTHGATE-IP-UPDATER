@@ -10,6 +10,7 @@ on:
       - 'tray.png'
       - 'package*.json'
       - 'scripts/**'
+      - 'build/**'
       - 'test/**'
       - '.github/workflows/release.yml'
   workflow_dispatch:
@@ -38,6 +39,9 @@ jobs:
         run: npm run dist
       - name: Verificar instalador e manifesto
         run: node scripts/verify-release.cjs
+      - name: Testar instalação e reinstalação no Windows
+        shell: pwsh
+        run: ./scripts/test-installer.ps1
       - name: Publicar release completa
         shell: bash
         env:
@@ -45,7 +49,9 @@ jobs:
         run: |
           set -euo pipefail
           version=$(node -p "require('./package.json').version")
-          installer="release/AuthGate-Atualizador-de-IP-Setup-${version}.exe"
+          installer="release/AuthGate-IP-Agent-Setup-${version}.exe"
+          cp "$installer" release/AuthGate-IP-Agent-Setup.exe
+          # Keep previously shared download links working.
           cp "$installer" release/AuthGate-Atualizador-de-IP-Setup.exe
           printf 'Atualização automática do AuthGate IP Updater.\n\nCódigo: %s\n' "$GITHUB_SHA" > release/notes.md
           # A rerun may finish an incomplete draft; never replace a published version.
@@ -54,5 +60,5 @@ jobs:
           else
             gh release create "v$version" --draft --target "$GITHUB_SHA" --title "AuthGate IP Updater $version" --notes-file release/notes.md
           fi
-          gh release upload "v$version" "$installer" "$installer.blockmap" release/latest.yml release/AuthGate-Atualizador-de-IP-Setup.exe --clobber
+          gh release upload "v$version" "$installer" "$installer.blockmap" release/latest.yml release/AuthGate-IP-Agent-Setup.exe release/AuthGate-Atualizador-de-IP-Setup.exe --clobber
           gh release edit "v$version" --draft=false --latest
