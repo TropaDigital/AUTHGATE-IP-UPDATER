@@ -1,0 +1,15 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const assert = require('node:assert/strict');
+const release = path.join(__dirname, '..', 'release');
+const manifest = fs.readFileSync(path.join(release, 'latest.yml'), 'utf8');
+const version = require('../package.json').version;
+assert.equal(/^version: (.+)$/m.exec(manifest)?.[1], version);
+const name = /^path: (.+)$/m.exec(manifest)?.[1];
+assert.equal(name, `AuthGate-Atualizador-de-IP-Setup-${version}.exe`);
+const data = fs.readFileSync(path.join(release, name));
+assert.equal(data.subarray(0, 2).toString(), 'MZ');
+assert.equal(crypto.createHash('sha512').update(data).digest('base64'), /^sha512: (.+)$/m.exec(manifest)?.[1]);
+assert.ok(fs.statSync(path.join(release, `${name}.blockmap`)).size > 0);
+console.log(`Release ${version}: executável Windows, SHA-512 e blockmap verificados.`);

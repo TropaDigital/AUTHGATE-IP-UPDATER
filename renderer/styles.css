@@ -1,0 +1,52 @@
+:root {
+  color: #e8edf7;
+  background: #07121d;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 560px; background: radial-gradient(circle at 15% 0%, #0c4f51 0, transparent 36%), #07121d; }
+button, input, select { font: inherit; }
+.shell { width: min(100%, 760px); margin: 0 auto; padding: 32px; }
+.topbar { display: flex; align-items: center; gap: 13px; margin-bottom: 24px; }
+.brand-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 15px; color: #052f2d; background: #2cddb1; font-weight: 800; letter-spacing: -0.08em; }
+.topbar h1, h2, p { margin: 0; }
+.topbar h1 { margin-top: 2px; font-size: 18px; letter-spacing: -0.03em; }
+.eyebrow { color: #93a7bd; font-size: 10px; font-weight: 800; letter-spacing: 0.18em; }
+.status-pill { margin-left: auto; border: 1px solid #263a4d; border-radius: 999px; padding: 7px 10px; color: #9aacbd; background: #0b1927; font-size: 12px; font-weight: 700; }
+.status-pill.status-active { border-color: #0d7c67; color: #72eccd; background: #07372f; }
+.status-pill.status-error { border-color: #923847; color: #ffabb5; background: #3b161e; }
+.card { margin-top: 14px; padding: 22px; border: 1px solid #23384b; border-radius: 20px; background: rgba(12, 26, 40, 0.96); box-shadow: 0 18px 45px rgba(0,0,0,.16); }
+.section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 19px; }
+.section-heading h2 { margin-top: 5px; font-size: 18px; letter-spacing: -0.025em; }
+.section-heading > p, .helper-text, .status-description { max-width: 270px; color: #94a6b8; font-size: 13px; line-height: 1.55; }
+.app-update-status { min-height: 0; margin-top: 8px; color: #72eccd; font-size: 12px; font-weight: 700; }
+.app-update-status:empty { display: none; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+label { display: grid; gap: 7px; color: #cdd7e5; font-size: 13px; font-weight: 700; }
+input, select { width: 100%; min-height: 45px; border: 1px solid #30455a; border-radius: 11px; padding: 0 12px; color: #eff5fc; background: #081521; outline: none; }
+input:focus, select:focus { border-color: #2cddb1; box-shadow: 0 0 0 3px rgba(44,221,177,.12); }
+select option { color: #eff5fc; background: #081521; }
+.full-width { grid-column: 1 / -1; }
+.primary-button, .secondary-button, .text-button { display: inline-flex; min-height: 43px; align-items: center; justify-content: center; gap: 8px; border-radius: 11px; padding: 0 15px; border: 1px solid transparent; cursor: pointer; font-size: 13px; font-weight: 800; }
+.primary-button { color: #052d2a; background: #2cddb1; }
+.primary-button:hover { background: #54e7c2; }
+.secondary-button { border-color: #344a60; color: #dce6f1; background: #102131; }
+.secondary-button:hover { background: #182d41; }
+.text-button { min-height: 32px; padding: 0; color: #77e4c9; background: transparent; }
+.action-row { display: flex; gap: 10px; margin-top: 20px; }
+.form-error { grid-column: 1 / -1; min-height: 0; color: #ffadb8; font-size: 13px; }
+.form-error:empty { display: none; }
+.status-card { min-height: 255px; }
+.loading-indicator { align-items: center; gap: 7px; color: #72eccd; font-size: 12px; font-weight: 800; }
+.spinner { display: none; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .75s linear infinite; }
+.is-loading .spinner, .loading-indicator .spinner { display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.log-list { display: grid; gap: 8px; max-height: 250px; overflow-y: auto; margin-top: 18px; }
+.log-entry { display: flex; gap: 11px; padding: 10px 11px; border-radius: 11px; background: #091724; color: #b9c7d5; font-size: 12px; line-height: 1.45; }
+.log-entry time { flex: 0 0 auto; color: #71879d; font-variant-numeric: tabular-nums; }
+.log-entry.success { border-left: 3px solid #2cddb1; }
+.log-entry.error { border-left: 3px solid #e76b78; }
+.empty-log { padding: 24px 0; text-align: center; color: #7c8fa2; font-size: 13px; }
+.hidden { display: none !important; }
+button:disabled { opacity: .58; cursor: not-allowed; }

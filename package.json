@@ -1,0 +1,57 @@
+{
+  "name": "authgate-ip-updater",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Atualizador de IP das unidades AuthGate",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "test": "node --test test/*.test.cjs"
+  },
+  "build": {
+    "appId": "br.com.authgate.ipupdater",
+    "productName": "AuthGate Atualizador de IP",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TropaDigital",
+        "repo": "AUTHGATE-IP-UPDATER",
+        "releaseType": "release"
+      }
+    ],
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "renderer/**/*",
+      "tray.png"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "AuthGate-Atualizador-de-IP-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TropaDigital/AUTHGATE-IP-UPDATER.git"
+  },
+  "author": "TropaDigital"
+}

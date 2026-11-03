@@ -1,0 +1,58 @@
+name: Publicar aplicativo Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'main.cjs'
+      - 'preload.cjs'
+      - 'renderer/**'
+      - 'tray.png'
+      - 'package*.json'
+      - 'scripts/**'
+      - 'test/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Definir versão crescente
+        run: npm version 1.3.${{ github.run_number }} --no-git-tag-version
+      - name: Gerar instalador
+        run: npm run dist
+      - name: Verificar instalador e manifesto
+        run: node scripts/verify-release.cjs
+      - name: Publicar release completa
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          installer="release/AuthGate-Atualizador-de-IP-Setup-${version}.exe"
+          cp "$installer" release/AuthGate-Atualizador-de-IP-Setup.exe
+          printf 'Atualização automática do AuthGate IP Updater.\n\nCódigo: %s\n' "$GITHUB_SHA" > release/notes.md
+          # A rerun may finish an incomplete draft; never replace a published version.
+          if gh release view "v$version" --json isDraft > release/existing.json 2>/dev/null; then
+            node -e "if (!require('./release/existing.json').isDraft) process.exit(1)"
+          else
+            gh release create "v$version" --draft --target "$GITHUB_SHA" --title "AuthGate IP Updater $version" --notes-file release/notes.md
+          fi
+          gh release upload "v$version" "$installer" "$installer.blockmap" release/latest.yml release/AuthGate-Atualizador-de-IP-Setup.exe --clobber
+          gh release edit "v$version" --draft=false --latest

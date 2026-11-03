@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AuthGate — Atualizador de IP</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">AG</div>
+        <div>
+          <p class="eyebrow">AUTHGATE</p>
+          <h1>Atualizador de IP</h1>
+        </div>
+        <span id="status-pill" class="status-pill status-idle">Aguardando acesso</span>
+      </header>
+
+      <section id="login-card" class="card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">PRIMEIRO PASSO</p>
+            <h2>Entre para escolher a unidade</h2>
+          </div>
+          <p>Use a mesma conta do AuthGate.</p>
+        </div>
+
+        <form id="login-form" class="form-grid">
+          <label>
+            Instância
+            <input id="instance-slug" name="instanceSlug" autocomplete="organization" placeholder="Ex.: eco-power" required />
+          </label>
+          <label>
+            E-mail
+            <input id="email" name="email" type="email" autocomplete="username" placeholder="voce@empresa.com" required />
+          </label>
+          <label class="full-width">
+            Senha
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <p id="login-error" class="form-error" role="alert"></p>
+          <button id="login-button" class="primary-button full-width" type="submit">
+            <span class="button-label">Entrar e carregar unidades</span>
+            <span class="spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+      </section>
+
+      <section id="unit-card" class="card hidden">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SEGUNDO PASSO</p>
+            <h2>Escolha a unidade</h2>
+          </div>
+          <button id="change-account" class="text-button" type="button">Trocar conta</button>
+        </div>
+        <label>
+          Unidade
+          <select id="unit-select"></select>
+        </label>
+        <p id="unit-help" class="helper-text">O aplicativo atualizará o IP desta unidade a cada 5 minutos.</p>
+        <div class="action-row">
+          <button id="start-button" class="primary-button" type="button">Iniciar atualizações</button>
+        </div>
+      </section>
+
+      <section id="monitor-card" class="card hidden">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">UNIDADE CONFIGURADA</p>
+            <h2 id="selected-unit-name"></h2>
+          </div>
+          <button id="change-login" class="text-button" type="button">Trocar unidade</button>
+        </div>
+        <p class="helper-text">Atualização automática a cada 5 minutos. Para trocar a unidade, entre novamente com a conta do administrador.</p>
+        <div class="action-row">
+          <button id="resume-button" class="primary-button hidden" type="button">Retomar atualizações</button>
+          <button id="stop-button" class="secondary-button hidden" type="button">Parar</button>
+          <button id="update-button" class="secondary-button hidden" type="button">Atualizar agora</button>
+        </div>
+      </section>
+
+      <section class="card status-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ACOMPANHAMENTO</p>
+            <h2 id="status-title">Pronto para começar</h2>
+          </div>
+          <span id="loading-indicator" class="loading-indicator hidden"><span class="spinner"></span> Atualizando</span>
+        </div>
+        <p id="status-description" class="status-description">Entre com a sua conta para selecionar uma unidade.</p>
+        <p id="app-update-status" class="app-update-status" aria-live="polite"></p>
+        <div id="log-list" class="log-list" aria-live="polite">
+          <p class="empty-log">As atualizações aparecerão aqui.</p>
+        </div>
+      </section>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>
