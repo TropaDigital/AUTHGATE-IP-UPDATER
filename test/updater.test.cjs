@@ -10,13 +10,16 @@ function harness(options = {}) {
   const timers = [];
   const logs = [];
   const installs = [];
+  const startup = [];
+  const openedUrls = [];
   let saved = options.saved ?? {};
   const disk = new Map();
   const context = vm.createContext({
     require(name) {
       if (name === 'electron') return {
         app: { getPath: () => '/fake', isPackaged: true, requestSingleInstanceLock: () => true,
-          whenReady: () => ({ then() {} }), on() {}, setLoginItemSettings() {} },
+          whenReady: () => ({ then() {} }), on() {}, setLoginItemSettings: (settings) => startup.push(settings) },
+        shell: { openExternal: async (url) => openedUrls.push(url) },
         ipcMain: { handle: (name, fn) => handlers.set(name, fn), removeHandler: (name) => handlers.delete(name) },
         safeStorage: { isEncryptionAvailable: () => true,
           encryptString: (v) => Buffer.from(v), decryptString: (v) => v.toString() },
@@ -32,8 +35,8 @@ function harness(options = {}) {
       };
       return require(name);
     },
-    __dirname: path.resolve(__dirname, '..'), process: { argv: [], platform: 'win32' },
-    Buffer, AbortController, Date, Error, console,
+    __dirname: path.resolve(__dirname, '..'), process: { argv: [], platform: 'win32', execPath: 'C:/AuthGate/AuthGate-IP-Agent.exe' },
+    Buffer, AbortController, Date, Error, console, URL,
     setTimeout: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; },
     clearTimeout: (t) => { if (t) t.cancelled = true; },
     setInterval: (fn, ms) => { const t = { fn, ms }; timers.push(t); return t; }, clearInterval() {},
@@ -42,7 +45,7 @@ function harness(options = {}) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../main.cjs'), 'utf8'), context);
   context.testLog = (type, message) => logs.push({ type, message });
   vm.runInContext('log = testLog', context);
-  return { context, handlers, events, timers, logs, installs, saved: () => saved,
+  return { context, handlers, events, timers, logs, installs, startup, openedUrls, saved: () => saved,
     run: (code) => vm.runInContext(code, context) };
 }
 function response(body, status = 200) {
@@ -249,4 +252,35 @@ test('automatic restart exposes only configured unit and never authorizes select
   assert.equal(sessions[0].units, undefined);
   assert.equal(h.run('currentSession.units.length'), 0);
   assert.equal((await h.handlers.get('updater:start')(null, 'u2')).success, false);
+});
+
+
+test('Windows startup uses installed executable and is repaired before offline resume', async () => {
+  const h = harness({ saved: { autoStart: true, selectedUnitId: 'u1', instanceSlug: 'tenant',
+    email: 'admin', encryptedPassword: Buffer.from('secret').toString('base64') } });
+  await h.run('resumeAutomaticUpdates()');
+  assert.equal(h.startup[0].openAtLogin, true);
+  assert.equal(h.startup[0].path, 'C:/AuthGate/AuthGate-IP-Agent.exe');
+  assert.equal(h.startup[0].args[0], '--background');
+  assert.ok(h.timers.some((timer) => timer.ms === 60000));
+});
+
+test('instance QR opens public page with all current codes and no credentials', async () => {
+  const h = harness({ fetch: async () => response([{ code: 'B' }, { code: 'A' }, { code: 'A' }]) });
+  session(h);
+  assert.equal((await h.handlers.get('updater:open-instance-qr')()).success, true);
+  const url = new URL(h.openedUrls[0]);
+  assert.equal(url.origin, 'https://authgate.com.br');
+  assert.equal(url.pathname, '/tenant/public/qr');
+  assert.deepEqual(url.searchParams.getAll('unit'), ['A', 'B']);
+  assert.equal([...url.searchParams.keys()].every((key) => key === 'unit'), true);
+  assert.equal(h.run('canSelectUnit'), false);
+});
+
+test('QR requires configured unit and does not launch browser on network failure', async () => {
+  const h = harness();
+  assert.equal((await h.handlers.get('updater:open-instance-qr')()).success, false);
+  session(h);
+  assert.equal((await h.handlers.get('updater:open-instance-qr')()).success, false);
+  assert.equal(h.openedUrls.length, 0);
 });

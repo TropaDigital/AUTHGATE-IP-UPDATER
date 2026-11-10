@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, Tray, Menu, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, Tray, Menu, nativeImage, powerMonitor, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs/promises');
 const path = require('node:path');
@@ -108,9 +108,17 @@ async function saveAutomaticStart(credentials, selectedUnitId, autoStart) {
   }
 
   await writeSavedSettings(nextSettings);
-  if (app.isPackaged && process.platform === 'win32') {
-    app.setLoginItemSettings({ openAtLogin: autoStart, args: ['--background'] });
-  }
+  configureWindowsStartup(autoStart);
+}
+
+function configureWindowsStartup(enabled) {
+  if (!app.isPackaged || process.platform !== 'win32') return;
+  app.setLoginItemSettings({
+    name: 'AuthGate Atualizador de IP',
+    path: process.execPath,
+    openAtLogin: enabled,
+    args: ['--background'],
+  });
 }
 
 function decryptSavedPassword(settings) {
@@ -564,6 +572,7 @@ async function resumeAutomaticUpdates() {
   const generation = resumeGeneration;
   isResuming = true;
   const savedSettings = await readSavedSettings();
+  configureWindowsStartup(savedSettings.autoStart);
   const password = decryptSavedPassword(savedSettings);
 
   if (!savedSettings.autoStart || !savedSettings.selectedUnitId || !password) {
@@ -586,7 +595,7 @@ async function resumeAutomaticUpdates() {
       throw new ApiError('A unidade salva não está disponível para atualização.');
     }
 
-    if (app.isPackaged && process.platform === 'win32') app.setLoginItemSettings({ openAtLogin: true, args: ['--background'] });
+    configureWindowsStartup(true);
     lockUnit(selectedUnit);
     startUpdater(selectedUnit);
     log('info', `Atualizações retomadas para ${selectedUnit.name}.`);
@@ -678,7 +687,7 @@ async function pauseUpdates() {
   stopUpdater();
   const settings = await readSavedSettings();
   await writeSavedSettings({ ...settings, autoStart: false, encryptedPassword: '' });
-  if (app.isPackaged && process.platform === 'win32') app.setLoginItemSettings({ openAtLogin: false, args: ['--background'] });
+  configureWindowsStartup(false);
   log('info', 'Atualizações interrompidas.');
   return { success: true };
 }
@@ -690,6 +699,32 @@ handleConfiguration('updater:change-unit', async () => {
   canSelectUnit = false;
   currentSession = null;
   return { success: true };
+});
+
+ipcMain.handle('updater:open-instance-qr', async () => {
+  const session = currentSession;
+  if (!session?.selectedUnit) return { success: false, message: 'Configure uma unidade antes de abrir o QR Code.' };
+  try {
+    const endpoint = `/instances/${encodeURIComponent(session.credentials.instanceSlug)}/units?pagination=false`;
+    let result;
+    try {
+      result = await request(endpoint, { headers: authHeaders(session.token) });
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      session.token = await authenticate(session.credentials);
+      result = await request(endpoint, { headers: authHeaders(session.token) });
+    }
+    const codes = [...new Set(getCollection(result.body).map((unit) => getString(unit, ['code']).trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    if (!codes.length) throw new Error('Nenhuma unidade disponível para gerar o QR Code.');
+    if (currentSession !== session) throw new Error('A configuração foi alterada. Tente novamente.');
+    const url = new URL(`https://authgate.com.br/${encodeURIComponent(session.credentials.instanceSlug)}/public/qr`);
+    codes.forEach((code) => url.searchParams.append('unit', code));
+    await shell.openExternal(url.href);
+    return { success: true };
+  } catch (error) {
+    return { success: false, message: getFriendlyError(error, 'abrir o QR Code da instância') };
+  }
 });
 
 ipcMain.handle('updater:update-now', async () => {

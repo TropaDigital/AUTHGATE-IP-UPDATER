@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('authgateUpdater', {
   start: (configuration) => ipcRenderer.invoke('updater:start', configuration),
   stop: () => ipcRenderer.invoke('updater:stop'),
   changeUnit: () => ipcRenderer.invoke('updater:change-unit'),
+  openInstanceQr: () => ipcRenderer.invoke('updater:open-instance-qr'),
   updateNow: () => ipcRenderer.invoke('updater:update-now'),
   onAppUpdate: (callback) => ipcRenderer.on('updater:app-update', (_event, state) => callback(state)),
   onLog: (callback) => ipcRenderer.on('updater:log', (_event, entry) => callback(entry)),

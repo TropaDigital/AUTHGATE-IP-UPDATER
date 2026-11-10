@@ -9,8 +9,9 @@ Aplicativo Windows para manter atualizado o IP público da rede de uma unidade d
 1. Instale no computador conectado à rede da usina.
 2. Entre com a instância e a conta do administrador.
 3. Escolha a unidade e inicie as atualizações.
+4. Use **Abrir QR Code da instância** para abrir a página de recepção no navegador, sem outro login. A lista de unidades é consultada a cada abertura; o link contém somente códigos públicos, sem credenciais.
 
-A partir daí, só a unidade configurada fica disponível. O IP é atualizado a cada cinco minutos; trocar a unidade exige novo login e senha. Fechar a janela mantém o aplicativo na bandeja. O monitoramento pode ser pausado e retomado para a mesma unidade. O aplicativo inicia no login do usuário Windows, desde que o monitoramento esteja habilitado.
+A partir daí, só a unidade configurada fica disponível. O IP é atualizado a cada cinco minutos; trocar a unidade exige novo login e senha. Fechar a janela mantém o aplicativo na bandeja. O monitoramento pode ser pausado e retomado para a mesma unidade. O aplicativo inicia na bandeja no login do usuário Windows, desde que o monitoramento esteja habilitado. O registro aponta explicitamente para o executável instalado e é reaplicado antes da tentativa de conexão. Se o Windows iniciar sem internet, tenta retomar a cada minuto. Não é necessário selecionar a unidade novamente. Clicar em **Parar** desativa também a retomada automática; **Retomar atualizações** a habilita novamente.
 
 A senha é armazenada usando a proteção do usuário do sistema operacional (`safeStorage`). Falhas de conexão e expiração do token são tratadas com novas tentativas. Uma instalação gerencia uma unidade; evite dois computadores atualizando a mesma unidade.
 

@@ -1,4 +1,5 @@
 const elements = {
+  openInstanceQr: document.querySelector('#open-instance-qr'),
   appUpdateStatus: document.querySelector('#app-update-status'),
   changeAccount: document.querySelector('#change-account'),
   monitorCard: document.querySelector('#monitor-card'),
@@ -254,4 +255,18 @@ void window.authgateUpdater.getSavedSettings().then((settings) => {
   elements.instanceSlug.value = settings.instanceSlug ?? '';
   elements.email.value = settings.email ?? '';
   elements.password.focus();
+});
+
+elements.openInstanceQr.addEventListener('click', async () => {
+  elements.openInstanceQr.disabled = true;
+  elements.openInstanceQr.textContent = 'Abrindo QR Code…';
+  try {
+    const result = await window.authgateUpdater.openInstanceQr();
+    if (!result.success) addLog({ type: 'error', message: result.message, timestamp: new Date().toISOString() });
+  } catch {
+    addLog({ type: 'error', message: 'Não foi possível abrir o QR Code. Tente novamente.', timestamp: new Date().toISOString() });
+  } finally {
+    elements.openInstanceQr.disabled = false;
+    elements.openInstanceQr.textContent = 'Abrir QR Code da instância';
+  }
 });
