@@ -284,3 +284,31 @@ test('QR requires configured unit and does not launch browser on network failure
   assert.equal((await h.handlers.get('updater:open-instance-qr')()).success, false);
   assert.equal(h.openedUrls.length, 0);
 });
+
+test('master login loads units across instances and QR uses selected instance', async () => {
+  const requests = [];
+  const h = harness({ fetch: async (url) => {
+    requests.push(url);
+    if (url.endsWith('/auth/login')) return response({ access_token: 'master-token' });
+    if (url.includes('/instance?')) return response([{ id: 'i1', slug: 'solar', name: 'Solar' }]);
+    if (url.includes('/unit-ip?')) return response([]);
+    if (url.includes('/unit?')) return response([{ id: 'u1', name: 'Usina', code: 'U1', instance_id: 'i1' }]);
+    if (url.includes('/instances/solar/units?')) return response([{ code: 'U1' }, { code: 'U2' }]);
+    throw new Error(`Unexpected endpoint: ${url}`);
+  } });
+  const result = await h.handlers.get('updater:login')(null, { email: 'master', password: 'secret', instanceSlug: 'authgate' });
+  assert.equal(result.success, true);
+  assert.equal(result.units[0].instanceSlug, 'solar');
+  assert.equal(result.units[0].instanceName, 'Solar');
+  h.run('lockUnit(currentSession.units[0])');
+  assert.equal((await h.handlers.get('updater:open-instance-qr')()).success, true);
+  assert.equal(new URL(h.openedUrls[0]).pathname, '/solar/public/qr');
+  assert.equal(requests.some((url) => url.includes('/instances/authgate/units')), false);
+  assert.equal(h.run('canSelectUnit'), false);
+});
+
+test('unit loading fetches all pages for master account', async () => {
+  const h = harness({ fetch: async (url) => response(url.includes('page=1&')
+    ? Array.from({ length: 100 }, (_, i) => ({ id: `u${i}` })) : [{ id: 'last' }]) });
+  assert.equal((await h.run("loadUnitRecords('token', 'authgate')")).length, 101);
+});

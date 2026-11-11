@@ -1,4 +1,5 @@
 const elements = {
+  appVersion: document.querySelector('#app-version'),
   openInstanceQr: document.querySelector('#open-instance-qr'),
   appUpdateStatus: document.querySelector('#app-update-status'),
   changeAccount: document.querySelector('#change-account'),
@@ -52,7 +53,7 @@ function setLoggedIn(nextUnits, selectedUnitId = '') {
   units.forEach((unit) => {
     const option = document.createElement('option');
     option.value = unit.id;
-    option.textContent = unit.code ? `${unit.name} (${unit.code})` : unit.name;
+    option.textContent = [unit.instanceName, unit.code ? `${unit.name} (${unit.code})` : unit.name].filter(Boolean).join(' — ');
     elements.unitSelect.append(option);
   });
 
@@ -252,6 +253,7 @@ window.authgateUpdater.onState((state) => {
 });
 
 void window.authgateUpdater.getSavedSettings().then((settings) => {
+  elements.appVersion.textContent = settings.version ? `Versão ${settings.version}` : '';
   elements.instanceSlug.value = settings.instanceSlug ?? '';
   elements.email.value = settings.email ?? '';
   elements.password.focus();

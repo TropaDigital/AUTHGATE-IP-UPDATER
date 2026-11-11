@@ -20,7 +20,7 @@ test('monitor clears unit list and switching returns to an empty-password login'
   for (const match of html.matchAll(/id="([^"]+)"(?: class="([^"]+)")?/g)) elements.set(`#${match[1]}`, element(match[2]));
   const callbacks = {};
   const api = {
-    getSavedSettings: async () => ({}),
+    getSavedSettings: async () => ({ version: '1.3.5' }),
     login: async () => ({ success: true, units: [{ id: 'u1', name: 'One' }, { id: 'u2', name: 'Two' }] }),
     changeUnit: async () => ({ success: true }),
     onLog: (fn) => { callbacks.log = fn; }, onSession: (fn) => { callbacks.session = fn; },
@@ -32,6 +32,7 @@ test('monitor clears unit list and switching returns to an empty-password login'
   }, createElement: () => element() }, window: { authgateUpdater: api }, Intl, Date });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../renderer/renderer.js'), 'utf8'), context);
   await elements.get('#login-form').events.submit({ preventDefault() {} });
+  assert.equal(elements.get('#app-version').textContent, 'Versão 1.3.5');
   assert.equal(elements.get('#unit-select').children.length, 2);
   callbacks.session({ selectedUnit: { id: 'u1', name: 'One' } });
   callbacks.state({ isActive: true, isUpdating: false, unitName: 'One' });

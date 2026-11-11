@@ -301,12 +301,29 @@ function getFriendlyError(error, action) {
   return error instanceof Error ? error.message : 'Não foi possível concluir esta etapa.';
 }
 
+async function loadUnitRecords(token, instanceSlug) {
+  const endpoint = instanceSlug === 'authgate' ? '/unit' : `/instances/${encodeURIComponent(instanceSlug)}/units`;
+  const records = [];
+  const seen = new Set();
+  for (let page = 1; ; page += 1) {
+    const response = await request(`${endpoint}?pagination=true&page=${page}&limit=100`, { headers: authHeaders(token) });
+    const items = getCollection(response.body);
+    const fresh = items.filter((unit) => {
+      const id = getString(unit, ['unit_id', 'id']);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    records.push(...fresh);
+    if (items.length < 100 || !fresh.length) return records;
+  }
+}
+
 async function loadUnits(token, instanceSlug) {
-  const [unitsResponse, ipsResponse] = await Promise.all([
-    request(`/instances/${encodeURIComponent(instanceSlug)}/units?pagination=false`, {
-      headers: authHeaders(token),
-    }),
+  const [unitRecords, ipsResponse, instancesResponse] = await Promise.all([
+    loadUnitRecords(token, instanceSlug),
     request('/unit-ip?pagination=false', { headers: authHeaders(token) }),
+    instanceSlug === 'authgate' ? request('/instance?pagination=false', { headers: authHeaders(token) }) : Promise.resolve({ body: [] }),
   ]);
   const settings = await readSavedSettings();
   const unitIpsByUnitId = new Map();
@@ -321,15 +338,23 @@ async function loadUnits(token, instanceSlug) {
     }
   });
 
-  return getCollection(unitsResponse.body)
+  const instances = getCollection(instancesResponse.body);
+  return unitRecords
     .map((unit) => {
       const id = getString(unit, ['unit_id', 'id']);
       const code = getString(unit, ['code']);
       const name = getString(unit, ['name', 'unit_name']) || code;
+      const instanceId = getString(unit, ['instance_id', 'instance.instance_id', 'instance.id']);
+      const instance = instances.find((item) => getString(item, ['instance_id', 'id']) === instanceId);
+      const unitInstanceSlug = getString(unit, ['instance.slug', 'instance_slug', 'instanceSlug', 'tenant.slug'])
+        || getString(instance, ['slug']) || (instanceSlug === 'authgate' ? '' : instanceSlug);
+      const instanceName = getString(unit, ['instance.name']) || getString(instance, ['name']) || unitInstanceSlug;
 
       return {
         code,
         id,
+        instanceSlug: unitInstanceSlug,
+        instanceName,
         ipAddress: unitIpsByUnitId.get(id)?.ipAddress ?? '',
         ipRecordId: settings.managedRecords?.[`${instanceSlug}/${id}`]?.recordId ?? unitIpsByUnitId.get(id)?.unitIpId ?? '',
         pendingIds: settings.managedRecords?.[`${instanceSlug}/${id}`]?.pendingIds ?? [],
@@ -636,6 +661,7 @@ function createWindow() {
 ipcMain.handle('updater:get-saved-settings', async () => {
   const settings = await readSavedSettings();
   return {
+    version: app.getVersion(),
     email: settings.email,
     instanceSlug: settings.instanceSlug,
   };
@@ -705,7 +731,9 @@ ipcMain.handle('updater:open-instance-qr', async () => {
   const session = currentSession;
   if (!session?.selectedUnit) return { success: false, message: 'Configure uma unidade antes de abrir o QR Code.' };
   try {
-    const endpoint = `/instances/${encodeURIComponent(session.credentials.instanceSlug)}/units?pagination=false`;
+    const instanceSlug = session.selectedUnit.instanceSlug || (session.credentials.instanceSlug !== 'authgate' ? session.credentials.instanceSlug : '');
+    if (!instanceSlug) throw new Error('Não foi possível identificar a instância desta unidade. Entre novamente.');
+    const endpoint = `/instances/${encodeURIComponent(instanceSlug)}/units?pagination=false`;
     let result;
     try {
       result = await request(endpoint, { headers: authHeaders(session.token) });
@@ -718,7 +746,7 @@ ipcMain.handle('updater:open-instance-qr', async () => {
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
     if (!codes.length) throw new Error('Nenhuma unidade disponível para gerar o QR Code.');
     if (currentSession !== session) throw new Error('A configuração foi alterada. Tente novamente.');
-    const url = new URL(`https://authgate.com.br/${encodeURIComponent(session.credentials.instanceSlug)}/public/qr`);
+    const url = new URL(`https://authgate.com.br/${encodeURIComponent(instanceSlug)}/public/qr`);
     codes.forEach((code) => url.searchParams.append('unit', code));
     await shell.openExternal(url.href);
     return { success: true };
