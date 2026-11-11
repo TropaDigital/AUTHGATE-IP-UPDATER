@@ -22,16 +22,21 @@ try {
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 5
         if (Test-Path $application) {
-            $installedVersion = (Get-Item $application).VersionInfo.ProductVersion
+            # Windows reports 1.3.7 as 1.3.7.0, and a newer release may be published meanwhile.
+            try { $installedVersion = [version](Get-Item $application).VersionInfo.ProductVersion } catch { continue }
             $running = @(Get-Process 'AuthGate-IP-Agent' -ErrorAction SilentlyContinue)
-            if ($installedVersion -eq $expectedVersion -and $running.Count -gt 0) {
+            if ($installedVersion -ge [version]$expectedVersion -and $running.Count -gt 0) {
                 $updated = $true
                 break
             }
         }
     }
-    if (-not $updated) { throw "Automatic update from 1.3.4 to $expectedVersion did not complete and restart without login." }
-    Write-Host "Automatic update from 1.3.4 to $expectedVersion completed and restarted without login."
+    if (-not $updated) { throw "Automatic update from 1.3.4 to $expectedVersion or newer did not complete and restart without login." }
+    # Saved login and unit must survive the update so nobody has to sign in again.
+    foreach ($name in @('AuthGate Atualizador de IP', 'authgate-ip-updater')) {
+        if ((Get-Content (Join-Path $env:APPDATA "$name\settings.json") -Raw) -ne '{"autoStart":false}') { throw "Saved settings in $name were modified by the update." }
+    }
+    Write-Host "Automatic update from 1.3.4 to $installedVersion (expected at least $expectedVersion) completed and restarted without login."
 } finally {
     # Job logs require a GitHub login; annotations are public, so publish diagnostics there too.
     function Publish-Diagnostic([string] $Title, [string[]] $Lines) {
