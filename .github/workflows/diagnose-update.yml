@@ -1,7 +1,7 @@
 name: Diagnosticar atualização Windows
 on:
   push:
-    paths: ['.github/workflows/diagnose-update.yml']
+    paths: ['.github/workflows/diagnose-update.yml', 'scripts/test-auto-update.ps1']
   workflow_dispatch:
 permissions:
   contents: read

@@ -33,11 +33,30 @@ try {
     if (-not $updated) { throw "Automatic update from 1.3.4 to $expectedVersion did not complete and restart without login." }
     Write-Host "Automatic update from 1.3.4 to $expectedVersion completed and restarted without login."
 } finally {
-    if (Test-Path $application) { Write-Host "Final installed version: $((Get-Item $application).VersionInfo.ProductVersion)" }
-    Get-Process 'AuthGate-IP-Agent' -ErrorAction SilentlyContinue | Select-Object Id, Path | Format-Table | Out-String | Write-Host
-    foreach ($file in @('stdout.log', 'stderr.log')) {
-        $logFile = Join-Path $root $file
-        if (Test-Path $logFile) { Get-Content $logFile -Tail 100 | Write-Host }
+    # Job logs require a GitHub login; annotations are public, so publish diagnostics there too.
+    function Publish-Diagnostic([string] $Title, [string[]] $Lines) {
+        $text = (($Lines | Where-Object { $_ -ne $null }) -join "`n")
+        if (-not $text) { $text = '(empty)' }
+        if ($text.Length -gt 6000) { $text = $text.Substring($text.Length - 6000) }
+        $text = $text.Replace('%', '%25').Replace("`r", '').Replace("`n", '%0A')
+        Write-Host "::warning title=${Title}::${text}"
+    }
+    $summary = @()
+    if (Test-Path $application) { $summary += "Final installed version: $((Get-Item $application).VersionInfo.ProductVersion)" } else { $summary += 'Application executable missing.' }
+    $summary += "Expected version: $expectedVersion"
+    $summary += (Get-Process 'AuthGate-IP-Agent' -ErrorAction SilentlyContinue | ForEach-Object { "Process $($_.Id): $($_.Path)" })
+    $summary += (Get-ChildItem 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall' -ErrorAction SilentlyContinue | ForEach-Object { Get-ItemProperty $_.PSPath } | Where-Object { $_.DisplayName -like '*AuthGate*' } | ForEach-Object { "Uninstall entry: $($_.DisplayName) $($_.DisplayVersion) at $($_.InstallLocation)" })
+    $summary += (Get-ChildItem $root -Recurse -Depth 1 -ErrorAction SilentlyContinue | ForEach-Object { "File: $($_.FullName)" })
+    $updaterCache = Join-Path $env:LOCALAPPDATA 'authgate-ip-updater-updater'
+    $summary += (Get-ChildItem $updaterCache -Recurse -ErrorAction SilentlyContinue | ForEach-Object { "Updater cache: $($_.FullName) ($($_.Length))" })
+    Write-Host ($summary -join "`n")
+    Publish-Diagnostic 'Update summary' $summary
+    foreach ($logFile in @((Join-Path $root 'stdout.log'), (Join-Path $root 'stderr.log'), (Join-Path $env:TEMP 'AuthGate-IP-Agent-install.log'))) {
+        if (Test-Path $logFile) {
+            $content = @(Get-Content $logFile -Tail 80)
+            $content | Write-Host
+            Publish-Diagnostic (Split-Path $logFile -Leaf) $content
+        }
     }
     Get-Process 'AuthGate-IP-Agent' -ErrorAction SilentlyContinue | Stop-Process -Force
 }
