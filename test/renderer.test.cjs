@@ -20,6 +20,7 @@ test('monitor clears unit list and switching returns to an empty-password login'
   for (const match of html.matchAll(/id="([^"]+)"(?: class="([^"]+)")?/g)) elements.set(`#${match[1]}`, element(match[2]));
   const callbacks = {};
   const api = {
+    getAppUpdateState: async () => ({ status: 'idle' }),
     getSavedSettings: async () => ({ version: '1.3.5' }),
     login: async () => ({ success: true, units: [{ id: 'u1', name: 'One' }, { id: 'u2', name: 'Two' }] }),
     changeUnit: async () => ({ success: true }),

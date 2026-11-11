@@ -17,7 +17,7 @@ A senha é armazenada usando a proteção do usuário do sistema operacional (`s
 
 ## Atualização automática
 
-O programa consulta as releases públicas deste repositório ao abrir e a cada 30 minutos. Baixa a nova versão, aguarda a atualização de IP em andamento, instala silenciosamente e reinicia, preservando a unidade configurada. Nenhum token do GitHub é necessário nos computadores das usinas.
+O programa consulta as releases públicas deste repositório ao abrir e a cada 5 minutos. Baixa a nova versão, aguarda a atualização de IP em andamento, instala silenciosamente e reinicia, preservando a unidade configurada. Nenhum token do GitHub é necessário nos computadores das usinas.
 
 Novas versões são publicadas automaticamente após push em `main` ou execução manual do workflow **Publicar aplicativo Windows**. A versão gerada é `1.3.<run_number>`. Para mudar a linha de versão, altere também o workflow. Os testes precisam passar antes do build. A release só sai de rascunho depois de todos os arquivos serem enviados.
 
@@ -59,3 +59,5 @@ node scripts/verify-release.cjs
 O workflow gera o instalador Windows x64 em um runner Windows. Os testes usam Electron e API simulados; instalação, inicialização do Windows e atualização entre versões devem ser validadas em um PC Windows. Sem certificado configurado, o instalador não tem assinatura de editor.
 
 Este repositório contém apenas o aplicativo. O frontend continua separado em `TropaDigital/AUTHGATE-FRONT`.
+
+A tela de entrada também mostra a versão, o progresso do download e os horários das verificações. A atualização não depende de login. Após publicar, o workflow abre a versão 1.3.4 sem autenticar e verifica a instalação automática e o reinício na versão publicada.

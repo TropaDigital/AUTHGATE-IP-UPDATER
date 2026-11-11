@@ -6,7 +6,10 @@ const { isIPv4 } = require('node:net');
 
 const API_BASE_URL = 'https://authgate.backendtropa.com.br';
 const UPDATE_INTERVAL_MS = 5 * 60 * 1000;
-const APP_UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000;
+const APP_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+let appUpdateState = { status: 'idle', lastCheckedAt: null, nextCheckAt: null };
+let isCheckingAppUpdate = false;
+let automaticUpdatesConfigured = false;
 
 let mainWindow = null;
 let tray = null;
@@ -146,7 +149,8 @@ function sendState() {
 }
 
 function sendAppUpdateState(state) {
-  send('updater:app-update', state);
+  appUpdateState = { ...appUpdateState, ...state };
+  send('updater:app-update', appUpdateState);
 }
 
 function log(type, message) {
@@ -514,16 +518,15 @@ function installDownloadedAppUpdateWhenSafe() {
 }
 
 function configureAutomaticAppUpdates() {
-  if (!app.isPackaged) {
-    return;
-  }
+  if (!app.isPackaged || automaticUpdatesConfigured) return;
+  automaticUpdatesConfigured = true;
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = false;
   // The GitHub provider is supplied by electron-builder's app-update.yml.
 
   autoUpdater.on('checking-for-update', () => {
-    sendAppUpdateState({ status: 'checking' });
+    sendAppUpdateState({ status: 'checking', lastCheckedAt: new Date().toISOString(), nextCheckAt: new Date(Date.now() + APP_UPDATE_CHECK_INTERVAL_MS).toISOString() });
   });
 
   autoUpdater.on('update-available', (info) => {
@@ -532,7 +535,7 @@ function configureAutomaticAppUpdates() {
   });
 
   autoUpdater.on('update-not-available', () => {
-    sendAppUpdateState({ status: 'up-to-date' });
+    sendAppUpdateState({ status: 'up-to-date', version: null, progress: 0 });
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -549,21 +552,35 @@ function configureAutomaticAppUpdates() {
     installDownloadedAppUpdateWhenSafe();
   });
 
-  autoUpdater.on('error', () => {
+  autoUpdater.on('error', (error) => {
     isQuittingForAppUpdate = false;
     isAppUpdateReady = false;
     log('error', 'Não foi possível atualizar o aplicativo. A busca será repetida automaticamente.');
-    sendAppUpdateState({ status: 'unavailable' });
+    sendAppUpdateState({ status: 'unavailable', errorCode: typeof error?.code === 'string' ? error.code : '', nextCheckAt: new Date(Date.now() + APP_UPDATE_CHECK_INTERVAL_MS).toISOString() });
   });
 
-  const checkForAppUpdate = () => {
-    if (isAppUpdateReady || isQuittingForAppUpdate) return;
-    void autoUpdater.checkForUpdates().catch(() => undefined);
-  };
-
-  setTimeout(checkForAppUpdate, 3000);
-  appUpdateTimer = setInterval(checkForAppUpdate, APP_UPDATE_CHECK_INTERVAL_MS);
+  setTimeout(() => void checkForAppUpdate(), 3000);
+  appUpdateTimer = setInterval(() => void checkForAppUpdate(), APP_UPDATE_CHECK_INTERVAL_MS);
 }
+
+async function checkForAppUpdate() {
+  if (!app.isPackaged) return { success: false, message: 'Disponível no aplicativo instalado.' };
+  if (isCheckingAppUpdate || isAppUpdateReady || isQuittingForAppUpdate || appUpdateState.status === 'downloading') {
+    return { success: true };
+  }
+  isCheckingAppUpdate = true;
+  try {
+    await autoUpdater.checkForUpdates();
+    return { success: true };
+  } catch {
+    return { success: false, message: 'Não foi possível verificar agora. Nova tentativa automática em até 5 minutos.' };
+  } finally {
+    isCheckingAppUpdate = false;
+  }
+}
+
+ipcMain.handle('updater:check-app-update', () => checkForAppUpdate());
+ipcMain.handle('updater:get-app-update-state', () => appUpdateState);
 
 function lockUnit(selectedUnit) {
   canSelectUnit = false;
@@ -785,6 +802,7 @@ if (!app.requestSingleInstanceLock()) {
     if (mainWindow) { mainWindow.show(); mainWindow.restore(); mainWindow.focus(); }
   });
   app.whenReady().then(() => {
+    configureAutomaticAppUpdates();
     createWindow();
     tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'tray.png')));
     tray.setToolTip('AuthGate — Atualizador de IP');
@@ -794,11 +812,12 @@ if (!app.requestSingleInstanceLock()) {
     ]));
     tray.on('double-click', () => mainWindow.show());
     powerMonitor.on('resume', () => {
+      void checkForAppUpdate();
       if (updaterState.isActive) void updateIp();
       else void resumeAutomaticUpdates();
     });
     mainWindow.webContents.once('did-finish-load', () => {
-      configureAutomaticAppUpdates();
+      sendAppUpdateState(appUpdateState);
       void resumeAutomaticUpdates();
     });
   });

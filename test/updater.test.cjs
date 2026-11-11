@@ -312,3 +312,31 @@ test('unit loading fetches all pages for master account', async () => {
     ? Array.from({ length: 100 }, (_, i) => ({ id: `u${i}` })) : [{ id: 'last' }]) });
   assert.equal((await h.run("loadUnitRecords('token', 'authgate')")).length, 101);
 });
+
+test('automatic checks run without login and retain download progress for reopened UI', async () => {
+  const h = harness();
+  h.run('configureAutomaticAppUpdates()');
+  assert.ok(h.timers.some((timer) => timer.ms === 3000));
+  assert.ok(h.timers.some((timer) => timer.ms === 300000));
+  assert.equal(h.run('currentSession'), null);
+  h.events.get('checking-for-update')();
+  h.events.get('update-available')({ version: '1.3.6' });
+  h.events.get('download-progress')({ percent: 47 });
+  const state = await h.handlers.get('updater:get-app-update-state')();
+  assert.equal(state.version, '1.3.6');
+  assert.equal(state.progress, 47);
+  assert.ok(state.lastCheckedAt);
+  h.events.get('update-downloaded')({ version: '1.3.6' });
+  assert.equal(h.run('isQuittingForAppUpdate'), true);
+});
+
+test('failed update exposes diagnostic code and permits the next scheduled check', async () => {
+  const h = harness();
+  h.run('configureAutomaticAppUpdates()');
+  h.events.get('update-available')({ version: '1.3.6' });
+  h.events.get('error')({ code: 'ERR_CONNECTION_RESET' });
+  const state = await h.handlers.get('updater:get-app-update-state')();
+  assert.equal(state.status, 'unavailable');
+  assert.equal(state.errorCode, 'ERR_CONNECTION_RESET');
+  assert.equal((await h.run('checkForAppUpdate()')).success, true);
+});

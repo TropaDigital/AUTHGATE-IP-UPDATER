@@ -62,3 +62,6 @@ jobs:
           fi
           gh release upload "v$version" "$installer" "$installer.blockmap" release/latest.yml release/AuthGate-IP-Agent-Setup.exe release/AuthGate-Atualizador-de-IP-Setup.exe --clobber
           gh release edit "v$version" --draft=false --latest
+      - name: Verificar atualização automática sem login
+        shell: pwsh
+        run: ./scripts/test-auto-update.ps1

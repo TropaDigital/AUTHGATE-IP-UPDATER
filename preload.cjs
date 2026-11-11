@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('authgateUpdater', {
+  getAppUpdateState: () => ipcRenderer.invoke('updater:get-app-update-state'),
+  checkAppUpdate: () => ipcRenderer.invoke('updater:check-app-update'),
   getSavedSettings: () => ipcRenderer.invoke('updater:get-saved-settings'),
   login: (credentials) => ipcRenderer.invoke('updater:login', credentials),
   start: (configuration) => ipcRenderer.invoke('updater:start', configuration),

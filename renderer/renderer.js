@@ -1,4 +1,7 @@
 const elements = {
+  checkAppUpdate: document.querySelector('#check-app-update'),
+  appUpdateProgress: document.querySelector('#app-update-progress'),
+  appUpdateDetails: document.querySelector('#app-update-details'),
   appVersion: document.querySelector('#app-version'),
   openInstanceQr: document.querySelector('#open-instance-qr'),
   appUpdateStatus: document.querySelector('#app-update-status'),
@@ -206,20 +209,39 @@ window.authgateUpdater.onLog(addLog);
 window.authgateUpdater.onSession((session) => {
   showMonitor(session.selectedUnit);
 });
-window.authgateUpdater.onAppUpdate((state) => {
+function renderAppUpdate(state) {
+  elements.checkAppUpdate.disabled = ['checking', 'downloading', 'ready', 'installing'].includes(state.status);
+  elements.appUpdateProgress.classList.toggle('hidden', state.status !== 'downloading');
+  elements.appUpdateProgress.value = state.progress ?? 0;
+  elements.appUpdateDetails.textContent = [
+    state.lastCheckedAt ? `Última verificação: ${formatTime(state.lastCheckedAt)}.` : '',
+    state.nextCheckAt ? `Próxima verificação: ${formatTime(state.nextCheckAt)}.` : '',
+    state.status === 'unavailable' && state.errorCode ? `Código: ${state.errorCode}.` : '',
+  ].filter(Boolean).join(' ');
   if (state.status === 'checking') {
     elements.appUpdateStatus.textContent = 'Procurando atualização do aplicativo…';
   } else if (state.status === 'downloading') {
     const progress = Number.isFinite(state.progress) ? ` ${state.progress}%` : '';
-    elements.appUpdateStatus.textContent = `Baixando atualização${progress}…`;
+    elements.appUpdateStatus.textContent = `Baixando versão ${state.version ?? 'nova'}${progress}… A instalação será automática.`;
   } else if (state.status === 'ready') {
     elements.appUpdateStatus.textContent = 'Atualização pronta. O aplicativo reiniciará depois da atualização de IP.';
   } else if (state.status === 'installing') {
     elements.appUpdateStatus.textContent = 'Instalando atualização e reiniciando…';
   } else if (state.status === 'unavailable') {
-    elements.appUpdateStatus.textContent = 'Atualização do aplicativo indisponível. Nova tentativa automática em até 30 minutos.';
+    elements.appUpdateStatus.textContent = 'Atualização do aplicativo indisponível. Nova tentativa automática em até 5 minutos.';
   } else if (state.status === 'up-to-date') {
-    elements.appUpdateStatus.textContent = '';
+    elements.appUpdateStatus.textContent = 'Aplicativo atualizado. Novas versões serão instaladas automaticamente.';
+  }
+}
+window.authgateUpdater.onAppUpdate(renderAppUpdate);
+void window.authgateUpdater.getAppUpdateState().then(renderAppUpdate);
+elements.checkAppUpdate.addEventListener('click', async () => {
+  elements.checkAppUpdate.disabled = true;
+  try {
+    const result = await window.authgateUpdater.checkAppUpdate();
+    if (!result.success) elements.appUpdateStatus.textContent = result.message;
+  } finally {
+    renderAppUpdate(await window.authgateUpdater.getAppUpdateState());
   }
 });
 window.authgateUpdater.onState((state) => {
