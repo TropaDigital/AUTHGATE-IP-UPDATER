@@ -53,12 +53,16 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">SEGUNDO PASSO</p>
-            <h2>Escolha a unidade</h2>
+            <h2 id="selection-title">Escolha a unidade</h2>
           </div>
           <button id="change-account" class="text-button" type="button">Trocar conta</button>
         </div>
+        <label id="instance-picker" class="hidden">
+          1. Instância
+          <select id="instance-select"></select>
+        </label>
         <label>
-          Unidade
+          <span id="unit-select-label">Unidade</span>
           <select id="unit-select"></select>
         </label>
         <p id="unit-help" class="helper-text">O aplicativo atualizará o IP desta unidade a cada 5 minutos.</p>

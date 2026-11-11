@@ -701,7 +701,7 @@ handleConfiguration('updater:login', async (_event, input) => {
     const session = await openSession(credentials);
     await saveLoginHint(credentials);
     canSelectUnit = true;
-    return { success: true, units: session.units };
+    return { success: true, units: session.units, isRoot: credentials.instanceSlug === 'authgate' };
   } catch (error) {
     return { success: false, message: getFriendlyError(error, 'carregar as unidades') };
   }

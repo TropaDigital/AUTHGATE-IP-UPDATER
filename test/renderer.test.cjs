@@ -34,7 +34,26 @@ test('monitor clears unit list and switching returns to an empty-password login'
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../renderer/renderer.js'), 'utf8'), context);
   await elements.get('#login-form').events.submit({ preventDefault() {} });
   assert.equal(elements.get('#app-version').textContent, 'Versão 1.3.5');
+  assert.equal(elements.get('#unit-select').children.length, 3);
+  vm.runInContext(`setLoggedIn([
+    { id: 'u1', name: 'One', instanceSlug: 'solar', instanceName: 'Solar' },
+    { id: 'u2', name: 'Two', instanceSlug: 'other', instanceName: 'Other' }
+  ], true)`, context);
+  assert.equal(elements.get('#instance-picker').classList.contains('hidden'), false);
+  assert.equal(elements.get('#unit-select').disabled, true);
+  assert.equal(elements.get('#start-button').disabled, true);
+  elements.get('#instance-select').value = 'solar';
+  elements.get('#instance-select').events.change();
   assert.equal(elements.get('#unit-select').children.length, 2);
+  assert.equal(elements.get('#unit-select').children[1].value, 'u1');
+  assert.equal(elements.get('#start-button').disabled, true);
+  elements.get('#unit-select').value = 'u1';
+  elements.get('#unit-select').events.change();
+  assert.equal(elements.get('#start-button').disabled, false);
+  elements.get('#instance-select').value = 'other';
+  elements.get('#instance-select').events.change();
+  assert.equal(elements.get('#unit-select').value, '');
+  assert.equal(elements.get('#start-button').disabled, true);
   callbacks.session({ selectedUnit: { id: 'u1', name: 'One' } });
   callbacks.state({ isActive: true, isUpdating: false, unitName: 'One' });
   assert.equal(elements.get('#unit-select').children.length, 0);
