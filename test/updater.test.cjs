@@ -17,7 +17,7 @@ function harness(options = {}) {
   const context = vm.createContext({
     require(name) {
       if (name === 'electron') return {
-        app: { getPath: () => '/fake', isPackaged: true, requestSingleInstanceLock: () => true,
+        app: { getPath: () => '/fake', getVersion: () => '9.9.9', isPackaged: true, requestSingleInstanceLock: () => true,
           whenReady: () => ({ then() {} }), on() {}, setLoginItemSettings: (settings) => startup.push(settings) },
         shell: { openExternal: async (url) => openedUrls.push(url) },
         ipcMain: { handle: (name, fn) => handlers.set(name, fn), removeHandler: (name) => handlers.delete(name) },
@@ -72,6 +72,7 @@ test('partial DELETE failure survives restart, reuses new IP and preserves other
   const records = [{ unit_id: 'u1', id: 'old', ip_address: '1.1.1.1' },
     { unit_id: 'u1', id: 'other-network', ip_address: '2.2.2.2' }];
   const fetch = async (url, opts = {}) => {
+    if (url.endsWith('/unit-agent/attempts')) return response({}, 201);
     if (url.includes('ipify')) return response({ ip: '3.3.3.3' });
     if (opts.method === 'POST') { posts++; records.push({ unit_id: 'u1', id: 'new', ip_address: '3.3.3.3' }); return response({ id: 'new' }); }
     if (opts.method === 'DELETE') {
@@ -153,6 +154,7 @@ test('ambiguous POST and changed IP cleans the previous attempted record', async
   let ip = '3.3.3.3'; let firstPost = true;
   const records = [{ unit_id: 'u1', id: 'old', ip_address: '1.1.1.1' }];
   const h = harness({ fetch: async (url, opts = {}) => {
+    if (url.endsWith('/unit-agent/attempts')) return response({}, 201);
     if (url.includes('ipify')) return response({ ip });
     if (opts.method === 'POST') {
       const id = firstPost ? 'uncertain' : 'new';
@@ -339,4 +341,80 @@ test('failed update exposes diagnostic code and permits the next scheduled check
   assert.equal(state.status, 'unavailable');
   assert.equal(state.errorCode, 'ERR_CONNECTION_RESET');
   assert.equal((await h.run('checkForAppUpdate()')).success, true);
+});
+
+const settle = async () => { for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve)); };
+function attemptsFrom(calls) {
+  return calls.filter((call) => call.url.endsWith('/unit-agent/attempts')).map((call) => JSON.parse(call.opts.body));
+}
+
+test('confirmed IP reports a public agent attempt with a stable agent id', async () => {
+  const calls = [];
+  const h = harness({ fetch: async (url, opts = {}) => {
+    calls.push({ url, opts });
+    if (url.includes('ipify')) return response({ ip: '3.3.3.3' });
+    if (url.endsWith('/unit-agent/attempts')) return response({}, 201);
+    if (opts.method === 'POST') return response({ id: 'new' });
+    return response([]);
+  } }); session(h, '');
+  assert.equal((await h.run('updateIp()')).success, true);
+  await settle();
+  assert.equal((await h.run('updateIp()')).success, true);
+  await settle();
+  const [first, second] = attemptsFrom(calls);
+  assert.equal(first.unit_id, 'u1');
+  assert.equal(first.ip_status, 'confirmed');
+  assert.equal(first.reported_ip, '3.3.3.3');
+  assert.equal(first.app_version, '9.9.9');
+  assert.equal(first.error_message, null);
+  assert.equal(first.last_success_at, first.attempted_at);
+  assert.match(first.agent_id, /^[0-9a-f-]{36}$/);
+  assert.equal(second.agent_id, first.agent_id);
+  assert.equal(h.saved().agentId, first.agent_id);
+  const attemptCall = calls.find((call) => call.url.endsWith('/unit-agent/attempts'));
+  assert.equal(attemptCall.opts.headers.Authorization, undefined);
+});
+
+test('failed IP update reports the error and keeps the previous success time', async () => {
+  const calls = [];
+  const h = harness({ saved: { lastSuccessAt: '2026-01-01T00:00:00.000Z' }, fetch: async (url, opts = {}) => {
+    calls.push({ url, opts });
+    if (url.endsWith('/unit-agent/attempts')) return response({}, 201);
+    throw new Error('offline');
+  } }); session(h);
+  assert.equal((await h.run('updateIp()')).success, false);
+  await settle();
+  const [attempt] = attemptsFrom(calls);
+  assert.equal(attempt.ip_status, 'error');
+  assert.equal(attempt.reported_ip, null);
+  assert.match(attempt.error_message, /offline/);
+  assert.equal(attempt.last_success_at, '2026-01-01T00:00:00.000Z');
+});
+
+test('failed automatic resume still reports the saved unit without credentials', async () => {
+  const calls = [];
+  const h = harness({ saved: { autoStart: true, email: 'test', instanceSlug: 'tenant', selectedUnitId: 'u1', encryptedPassword: Buffer.from('secret').toString('base64') },
+    fetch: async (url, opts = {}) => {
+      calls.push({ url, opts });
+      if (url.endsWith('/unit-agent/attempts')) return response({}, 201);
+      return response({ message: 'Credenciais inválidas' }, 401);
+    } });
+  await h.run('resumeAutomaticUpdates()');
+  await settle();
+  const [attempt] = attemptsFrom(calls);
+  assert.equal(attempt.unit_id, 'u1');
+  assert.equal(attempt.ip_status, 'error');
+  assert.ok(attempt.error_message);
+});
+
+test('attempt reporting failure never breaks the IP update', async () => {
+  const h = harness({ fetch: async (url, opts = {}) => {
+    if (url.endsWith('/unit-agent/attempts')) throw new Error('backend down');
+    if (url.includes('ipify')) return response({ ip: '3.3.3.3' });
+    if (opts.method === 'POST') return response({ id: 'new' });
+    return response([]);
+  } }); session(h, '');
+  assert.equal((await h.run('updateIp()')).success, true);
+  await settle();
+  assert.equal(await h.run("reportAgentAttempt({ unitId: 'u1', ipStatus: 'error', errorMessage: 'x' })"), false);
 });

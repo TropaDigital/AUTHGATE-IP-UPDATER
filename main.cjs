@@ -3,8 +3,11 @@ const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { isIPv4 } = require('node:net');
+const os = require('node:os');
+const { randomUUID } = require('node:crypto');
 
-const API_BASE_URL = 'https://authgate.backendtropa.com.br';
+// AUTHGATE_API_URL lets a homologation build or test run point at another backend.
+const API_BASE_URL = (process.env?.AUTHGATE_API_URL || 'https://authgate.backendtropa.com.br').replace(/\/+$/, '');
 const UPDATE_INTERVAL_MS = 5 * 60 * 1000;
 const APP_UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 let appUpdateState = { status: 'idle', lastCheckedAt: null, nextCheckAt: null };
@@ -54,6 +57,8 @@ async function readSavedSettings() {
       encryptedPassword: typeof settings.encryptedPassword === 'string' ? settings.encryptedPassword : '',
       instanceSlug: typeof settings.instanceSlug === 'string' ? settings.instanceSlug : '',
       selectedUnitId: typeof settings.selectedUnitId === 'string' ? settings.selectedUnitId : '',
+      agentId: typeof settings.agentId === 'string' ? settings.agentId : '',
+      lastSuccessAt: typeof settings.lastSuccessAt === 'string' ? settings.lastSuccessAt : '',
     };
   } catch {
     return {
@@ -82,6 +87,66 @@ async function rememberRecords(session, recordId, pendingIds, attemptedIp = '') 
   });
   settingsQueue = operation.catch(() => undefined);
   await operation;
+}
+
+// Serialized read-modify-write so agent metadata never races other settings writes.
+async function updateSavedSettings(change) {
+  const operation = settingsQueue.then(async () => {
+    const settings = await readSavedSettings();
+    const next = change(settings);
+    if (next) await writeSavedSettings(next);
+    return next ?? settings;
+  });
+  settingsQueue = operation.catch(() => undefined);
+  return operation;
+}
+
+async function getAgentId() {
+  const settings = await updateSavedSettings((current) => (current.agentId ? null : { ...current, agentId: randomUUID() }));
+  return settings.agentId;
+}
+
+function getOsVersion() {
+  const name = typeof os.version === 'function' ? os.version() : os.type();
+  return `${name} ${os.release()}`.trim().slice(0, 255);
+}
+
+// Reports every attempt (success or failure) so the AuthGate panel can show each
+// plant's health. Public endpoint: it must work even when the saved login fails.
+// Never throws and never delays the IP update itself.
+async function reportAgentAttempt({ unitId, ipStatus, reportedIp = null, errorMessage = null }) {
+  if (!unitId) return false;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const attemptedAt = new Date().toISOString();
+    const agentId = await getAgentId();
+    const settings = ipStatus === 'confirmed'
+      ? await updateSavedSettings((current) => ({ ...current, lastSuccessAt: attemptedAt }))
+      : await readSavedSettings();
+    const response = await fetch(`${API_BASE_URL}/unit-agent/attempts`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        unit_id: unitId,
+        agent_id: agentId,
+        app_version: app.getVersion(),
+        hostname: os.hostname().slice(0, 255),
+        os_version: getOsVersion(),
+        reported_ip: reportedIp || null,
+        ip_status: ipStatus,
+        error_message: errorMessage ? String(errorMessage).slice(0, 2048) : null,
+        attempted_at: attemptedAt,
+        last_success_at: settings.lastSuccessAt || null,
+      }),
+      signal: controller.signal,
+    });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function saveLoginHint(credentials) {
@@ -441,6 +506,7 @@ async function updateIp() {
     return { success: false, message: 'Escolha uma unidade antes de iniciar a atualização.' };
   }
   const { selectedUnit } = session;
+  let ipAddress = '';
   setUpdaterState({ isUpdating: true });
   log('info', `Atualizando ${selectedUnit.name}…`);
 
@@ -455,7 +521,7 @@ async function updateIp() {
   };
 
   try {
-    const ipAddress = await getPublicIp();
+    ipAddress = await getPublicIp();
     const response = await authorized((token) => request('/unit-ip?pagination=false', { headers: authHeaders(token) }));
     const records = getCollection(response.body).filter((record) =>
       getString(record, ['unit_id', 'unit.unit_id', 'unit.id']) === selectedUnit.id);
@@ -486,9 +552,11 @@ async function updateIp() {
     selectedUnit.ipAddress = ipAddress;
     selectedUnit.ipRecordId = newRecordId;
     log('success', `IP confirmado no AuthGate: ${ipAddress}.`);
+    void reportAgentAttempt({ unitId: selectedUnit.id, ipStatus: 'confirmed', reportedIp: ipAddress });
     return { success: true };
   } catch (error) {
     const message = getFriendlyError(error, 'atualizar o IP desta unidade');
+    void reportAgentAttempt({ unitId: selectedUnit.id, ipStatus: 'error', reportedIp: ipAddress, errorMessage: message });
     log('error', `${message} Uma nova tentativa será feita automaticamente.`);
     return { success: false, message };
   } finally {
@@ -619,7 +687,10 @@ async function resumeAutomaticUpdates() {
 
   if (!savedSettings.autoStart || !savedSettings.selectedUnitId || !password) {
     isResuming = false;
-    if (savedSettings.autoStart && !password) log('error', 'Entre novamente para restaurar o acesso salvo.');
+    if (savedSettings.autoStart && !password) {
+      log('error', 'Entre novamente para restaurar o acesso salvo.');
+      void reportAgentAttempt({ unitId: savedSettings.selectedUnitId, ipStatus: 'error', errorMessage: 'A senha salva não está disponível neste computador. É preciso entrar novamente no aplicativo.' });
+    }
     installDownloadedAppUpdateWhenSafe();
     return;
   }
@@ -644,7 +715,9 @@ async function resumeAutomaticUpdates() {
   } catch (error) {
     currentSession = null;
     resumeTimer = setTimeout(() => void resumeAutomaticUpdates(), 60000);
-    log('error', `Nova tentativa em 1 minuto. Não foi possível retomar as atualizações automaticamente. ${getFriendlyError(error, 'acessar a unidade')}`);
+    const message = `Não foi possível retomar as atualizações automaticamente. ${getFriendlyError(error, 'acessar a unidade')}`;
+    log('error', `Nova tentativa em 1 minuto. ${message}`);
+    void reportAgentAttempt({ unitId: savedSettings.selectedUnitId, ipStatus: 'error', errorMessage: message });
   } finally {
     isResuming = false;
     installDownloadedAppUpdateWhenSafe();
